@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/npm-osv-check.sh",
+            "if": "Bash(npm *)",
+            "timeout": 60,
+            "statusMessage": "Scanning lockfile with osv-scanner…"
+          }
+        ]
+      }
+    ]
+  }
+}
