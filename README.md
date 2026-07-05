@@ -1,11 +1,14 @@
 # claude-code-npm-osv-hook
 
 A [Claude Code](https://claude.com/claude-code) `PreToolUse` hook that scans
-`package-lock.json` with [osv-scanner](https://google.github.io/osv-scanner/)
-before Claude Code runs an `npm` command. If OSV reports known malware,
-supply-chain compromises, or vulnerable package versions in the lockfile, the
-npm command is **blocked** and the findings surface inline. If required tools
-are missing, the command is blocked with install instructions.
+your lockfile with [osv-scanner](https://google.github.io/osv-scanner/)
+before Claude Code runs an `npm`, `npx`, `pnpm`, `yarn`, or `bun` command.
+Each tool is checked against the lockfile it actually resolves dependencies
+from (`package-lock.json`/`npm-shrinkwrap.json`, `pnpm-lock.yaml`,
+`yarn.lock`, or `bun.lock`). If OSV reports known malware, supply-chain
+compromises, or vulnerable package versions in the lockfile, the command is
+**blocked** and the findings surface inline. If required tools are missing,
+the command is blocked with install instructions.
 
 ## Why
 
@@ -49,8 +52,9 @@ cp -r claude-code-npm-osv-hook/.claude/hooks /path/to/your/project/.claude/
 ```
 
 After installing, open `/hooks` in Claude Code once (or restart the session)
-so the settings watcher picks up the new file. After that, every `npm …`
-command Claude tries to run will trigger the scan first.
+so the settings watcher picks up the new file. After that, every `npm`,
+`npx`, `pnpm`, `yarn`, or `bun` command Claude tries to run will trigger the
+scan first.
 
 ## Files
 
@@ -65,15 +69,18 @@ command Claude tries to run will trigger the scan first.
 
 | Situation | Outcome |
 |---|---|
-| `osv-scanner` not installed | npm blocked with install message |
-| No `package-lock.json` (first install) | npm allowed — there's nothing to scan yet |
-| osv-scanner finds zero issues | npm allowed (silent) |
-| osv-scanner finds issues | npm blocked, findings surfaced in the deny reason |
+| `osv-scanner` not installed | command blocked with install message |
+| No relevant lockfile (first install) | command allowed — there's nothing to scan yet |
+| osv-scanner finds zero issues | command allowed (silent) |
+| Lockfile exists but has no packages | command allowed |
+| osv-scanner finds issues (exit 1) | command blocked, findings surfaced in the deny reason |
+| osv-scanner itself fails (network, malformed lockfile) | command blocked with a distinct scanner-error message |
 
 The settings example runs the hook for Bash tool calls, and the script exits
-immediately unless it finds a command segment that starts with `npm` (including
-simple forms like `cd app && npm ci`). `git`, `ls`, `node`, and `echo npm
-install` are unaffected.
+immediately unless it finds a command segment that starts with `npm`, `npx`,
+`pnpm`, `yarn`, `bun`, or `bunx` — including forms like `cd app && npm ci`,
+`(cd app && npm ci)`, and `CI=true npm test`. `git`, `ls`, `node`, and
+`echo npm install` are unaffected.
 
 ## Manual override
 
@@ -84,21 +91,26 @@ inside Claude Code, you can run the npm command yourself in a terminal.
 
 ## Caveats
 
-- The scan adds a second or two to every npm invocation. If that's too
-  slow, you can add a narrower matcher, but doing so may miss commands such as
-  `cd app && npm ci`.
-- `npx`, `pnpm`, `yarn` aren't covered — only `npm`. Extend the matcher if
-  you use those.
+- The scan adds a second or two to every package-manager invocation. If
+  that's too slow, you can add a narrower matcher, but doing so may miss
+  commands such as `cd app && npm ci`.
+- Bun's legacy binary lockfile (`bun.lockb`) isn't scanned — only the text
+  `bun.lock` format. Run `bun install --save-text-lockfile` to migrate.
+- `npx` (and `bunx`) execute packages that may not be in any lockfile; the
+  hook can only vet the project's existing lockfile, not the package being
+  executed.
+- Wrapped invocations like `sudo npm ci`, `time npm ci`, or scripts that call
+  npm internally aren't detected.
 - OSV catches **known** issues. A true zero-day supply-chain attack won't
   be in the database yet. This is a safety net, not a guarantee.
-- First-time installs are allowed when no `package-lock.json` exists, because
-  there is no lockfile to scan yet.
+- First-time installs are allowed when no lockfile exists, because there is
+  no lockfile to scan yet.
 - Installing a brand-new package may introduce versions that were not in the
   lockfile before the command started. This hook is strongest for `npm ci`,
   repeat installs, and commands run against an existing lockfile.
-- The hook handles simple `cd app && npm ...` commands and scans that
-  directory's lockfile. More complex shell flows fall back to the current
-  working directory.
+- The hook handles simple `cd app && npm ...` commands (including inside a
+  subshell) and scans that directory's lockfile. More complex shell flows
+  fall back to the current working directory.
 
 ## Test
 

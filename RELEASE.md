@@ -2,6 +2,31 @@
 
 ## claude-code-npm-osv-hook
 
+## Unreleased
+
+This release broadens coverage beyond `npm` and makes failure handling
+precise.
+
+### Highlights
+
+- Covers `npx`, `pnpm`, `yarn`, `bun`, and `bunx` in addition to `npm`, each
+  scanned against the lockfile that tool actually resolves dependencies from
+  (`package-lock.json`/`npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock`,
+  `bun.lock`).
+- Catches commands behind bare environment-variable prefixes
+  (`CI=true npm test`) and inside subshells (`(cd app && npm ci)`).
+- Distinguishes osv-scanner outcomes by exit code: findings (exit 1) block
+  with the vulnerability report, scanner errors (network, malformed lockfile)
+  block with a distinct "scanner error, not a finding" message, and lockfiles
+  with no packages (exit 128) are allowed instead of misreported as
+  vulnerable.
+- Filters osv-scanner's filesystem-walk noise out of deny messages.
+- Verified against osv-scanner v2.x (`--lockfile` remains compatible).
+- Expands the test suite from 7 to 16 cases, including per-tool lockfile
+  routing and scanner-error paths.
+
+## Previous release
+
 This release improves the reliability and documentation of the Claude Code
 `PreToolUse` hook that blocks unsafe npm commands when `osv-scanner` reports
 known issues in `package-lock.json`.
